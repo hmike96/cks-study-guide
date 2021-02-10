@@ -1,6 +1,6 @@
 # CKS Study Guide
 
-### 1. Network Policies
+## 1. Network Policies
    
    1. Default Deny all Egress
    ```yaml
@@ -35,7 +35,7 @@
    $ k explain NetworkPolicy.spec.ingress;
    ```
 
-### 2. Verify Platform Binaries
+## 2. Verify Platform Binaries
    
    1. Command to get sha of binary 
    ```bash
@@ -51,7 +51,7 @@
    ```bash
    $ docker cp ${IMAGE_HASH}:/ ${LOCAL_DIR_NAME}
    ``` 
-### 3. RBAC 
+## 3. RBAC 
    1. Create a role imperatively
    ```bash
    $ k create role secret-manager --verb=get --resources=secrets -n red -oyaml --dry-run=client > role.yaml
@@ -69,7 +69,7 @@
    ```bash
    k create clusterrole --verb=delete --resource=deployments
    ```
-   6. Can not assign ClusterRoleBinding to a Role but can assigned ClusterRole a RoleBinding
+   6. Can not assign ClusterRoleBinding to a Role but a ClusterRole can be assigned through a RoleBinding
    7. Users in Kubernetes must have a certificate signed by Kubernetes CA with cert CN equal to the Users username in K8S.
    8. No way to remove a Kubernetes certificate; would have to do one of three things
       1. Remove all access via RBAC
@@ -98,23 +98,22 @@
    k auth can-i delete secrets --as system:serviceaccount:default:accessor
    ```
    12. Turn of automount of service account token with po.spec.automountServiceAccountToken or sa.spec.automountServiceAccountToken
-### 4. Restrict API Access
-   1. To configure this on kube-api server configure the following arguement in the pod. 
+## 4. Restrict API Access
+   1. To configure this on kube-api server configure the following arguement in the pod. (Needed for liveness probe)
    ```bash
    --anonymous-auth=true|false
    ```
-   2. Anonymous user is known as system:anonymous
-   3. Needed for liveness probe ^^
-   4. Kube API server ```--insecure-port=8080``` (deprecated in 1.20)
-   5. Admission Controller plugin for Node Restrictions
-      1. prevents secure labels from being set on nodes from kubelet 
+   2. Anonymous user is known as system:anonymous 
+   3. Kube API server ```--insecure-port=8080``` (deprecated in 1.20)
+   4. Admission Controller plugin for Node Restrictions
+      1. prevents kubelet from setting secure labels on nodes 
       2. kubelet cant set ```node-restriction.kubernetes.io/{text}``` node label key
       ```bash 
       --enable-admission-plugins=NodeRestrictions 
       ```
-### 5. Node Upgrades
+## 5. Node Upgrades
 TBC
-### 6. Creating and Mounting Secrets 
+## 6. Creating and Mounting Secrets 
    1. Hack secrets in Docker by running the following command then checking for env vars
    ```bash
    docker inspect ${CONTAINER_ID} 
@@ -165,7 +164,7 @@ TBC
    ...
    ```
    10. Best practice is to encrypt using aescbc.
-### 7. Container Runtime Sandboxes 
+## 7. Container Runtime Sandboxes 
    1. Linux Commands
       1. The follow command prints out syscalls made in linux command
       ```bash
@@ -187,5 +186,5 @@ TBC
      runtimeClassName: myclass
      ...
    ```
-### 8. Security Contexts
+## 8. Security Contexts
    1. 
