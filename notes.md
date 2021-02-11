@@ -464,3 +464,28 @@ TBC
          client-certificate: /etc/kubernetes/admission/apiserver-client-cert.pem     # cert for the webhook admission controller to use
          client-key:  /etc/kubernetes/admission/apiserver-client-key.pem             # key matching the cert
    ```
+## Runtime Security 
+
+### Behavioral Analytics at host and container level
+
+1. /proc directory is a secure directory in linux with info on processes
+   * Info and connection to processes and kernal
+   * configuration and administrative tasks
+   * contains files that dont exist yet you access
+2. find etcd process with ```ps aux | grep etcd```
+3. Use strace to find a process with ```strace -p ${PROCESS_ID}``` (-f to follow, forks as well)
+4. use /proc to find processes info with the following path /proc/${PROCESS_ID} (cd fd then ls -lh)
+5. ```tail -f 7``` to follow the /proc/${PROCESS_ID}/fd files, find a secret using ```cat ${fd} | grep ${SECRET}```
+6. /proc has environ file with environment variables
+
+### Falco
+
+1. Find configuration for Falco in ```/etc/falco``` directory
+2. default output logs is to ```/var/log/syslog```
+3. falco .local rules override the nodes general falco_rules
+
+### Auditing 
+
+### Kernal Hardening Tools
+
+### Reduce Attack Surface
