@@ -1,6 +1,8 @@
 # CKS Study Guide
 
-## 1. Network Policies
+## Cluster Setup
+
+### Network Policies
    
    1. Default Deny all Egress
    ```yaml
@@ -34,8 +36,35 @@
    $ k explain NetworkPolicy.spec.egress;
    $ k explain NetworkPolicy.spec.ingress;
    ```
-
-## 2. Verify Platform Binaries
+### Secure Ingress
+   1. Create a tls secret for ingress
+   ```bash
+   $ k create secret tls secure-ingress --cert=cert.pem --key=key.pem
+   ``` 
+   2. Secure ingress with tls specifying secret
+   ```yaml
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: tls-example-ingress
+   spec:
+     tls:
+       - hosts:
+         - https-example.foo.com
+         secretName: testsecret-tls
+     rules:
+       - host: https-example.foo.com
+         http:
+           paths:
+             - path: /
+               pathType: Prefix
+               backend:
+                 service:
+                   name: service1
+                   port:
+                     number: 80
+   ```
+### Verify Platform Binaries
    
    1. Command to get sha of binary 
    ```bash
@@ -51,7 +80,9 @@
    ```bash
    $ docker cp ${IMAGE_HASH}:/ ${LOCAL_DIR_NAME}
    ``` 
-## 3. RBAC 
+## Cluster Hardening
+
+### RBAC 
    1. Create a role imperatively
    ```bash
    $ k create role secret-manager --verb=get --resources=secrets -n red -oyaml --dry-run=client > role.yaml
@@ -98,7 +129,7 @@
    k auth can-i delete secrets --as system:serviceaccount:default:accessor
    ```
    12. Turn of automount of service account token with po.spec.automountServiceAccountToken or sa.spec.automountServiceAccountToken
-## 4. Restrict API Access
+### Restrict API Access
    1. To configure this on kube-api server configure the following arguement in the pod. (Needed for liveness probe)
    ```bash
    --anonymous-auth=true|false
@@ -108,12 +139,22 @@
    4. Admission Controller plugin for Node Restrictions
       1. prevents kubelet from setting secure labels on nodes 
       2. kubelet cant set ```node-restriction.kubernetes.io/{text}``` node label key
-      ```bash 
-      --enable-admission-plugins=NodeRestrictions 
-      ```
-## 5. Node Upgrades
+   5. Enable setting in Kube Api Server
+   ```yaml
+   ...
+   containers:
+     - command:
+       - kube-apiserver
+       - --enable-admission-plugins=NodeRestrictions
+       ... 
+   ```
+### Node Upgrades
 TBC
-## 6. Creating and Mounting Secrets 
+
+## Microservice Vulnerabilities 
+
+### Manage Kubernetes Secrets
+
    1. Hack secrets in Docker by running the following command then checking for env vars
    ```bash
    docker inspect ${CONTAINER_ID} 
@@ -144,8 +185,13 @@ TBC
             secret: <BASE 64 ENCODED SECRET>
    ```
    8. To enable the EncryptianConfiguration resource in the Kube API server add following config
-   ```bash
-   encryptian-provider-config=/etc/kubernetes/etcd/ec.yaml
+   ```yaml
+   ...
+   containers:
+     - command:
+       - kube-apiserver
+       - --encryptian-provider-config=/etc/kubernetes/etcd/ec.yaml
+       ... 
    ```
    9. Make sure to also mount EncryptianConfiguration yaml in API Server from master node with the following snippets of manifest
    
@@ -163,8 +209,10 @@ TBC
      name: etcd
    ...
    ```
-   10. Best practice is to encrypt using aescbc.
-## 7. Container Runtime Sandboxes 
+   10.  Best practice is to encrypt using aescbc.
+   
+### Container Runtime Sandboxes 
+
    1. Linux Commands
       1. The follow command prints out syscalls made in linux command
       ```bash
@@ -179,12 +227,240 @@ TBC
    # RuntimeClass is a non-namespaced resource
    handler: myconfiguration  # The name of the corresponding CRI configuration ex. runsc for gvisor
    ```
-   3. Specify Runtime Class in a Pod manifests as follows
+   1. Specify Runtime Class in a Pod manifests as follows
    ```yaml
    ...
    spec:
      runtimeClassName: myclass
      ...
    ```
-## 8. Security Contexts
-   1. 
+### OS Level Security Domains
+   1. Check uid, gid, and groups of current user 
+   ```bash
+   $ id
+   ```
+   2. disable run as root from container (will cause bug if container needs to run as root)
+   ```yaml
+   ...
+   spec:
+     containers:
+       - securityContext:
+           runAsNonRoot: true
+         ...  
+   ```
+   3. Privileged Container: container user 0 (root) is mapped to host user 0 (root)
+   4. run kubernetes pods container as privileged
+   ```yaml
+   ...
+   spec:
+     containers:
+       - securityContext:
+           privileged: true
+         ...  
+   ```
+   5. PrivilegedEscalation: process can gain more privileges than its parents process
+   6. Disable privileged escalation in pods container
+   ```yaml
+   ...
+   spec:
+     containers:
+       - securityContext:
+           allowPrivilegeEscalation: true
+         ...  
+   ```
+   7. Enable PodSecurityPolicy kubernetes admission webhook in Kube API Server
+   ```yaml
+   ...
+   containers:
+     - command:
+       - kube-apiserver
+       - --enable-admission-plugins=NodeRestrictions
+       ... 
+   ```
+   8. Example PodSecurityPolicy
+   ```yaml
+   apiVersion: policy/v1beta1
+   kind: PodSecurityPolicy
+   metadata:
+     name: example
+   spec:
+     allowPrivilegedEscalation: false
+     privileged: false  # Don't allow privileged pods!
+     # The rest fills in some required fields.
+     seLinux:
+       rule: RunAsAny
+     supplementalGroups:
+       rule: RunAsAny
+     runAsUser:
+       rule: RunAsAny
+     fsGroup:
+       rule: RunAsAny
+     volumes:
+       - '*'
+   ```
+   9. PodSecurityPolicy does nothing by default. To enable a target pods service account must have role to use the podsecuritypolicy resources
+### mTLS 
+   1. You must configure iptables to forward app containers traffic to the side car proxy container to handle tls
+   2. Require security context capability to manipulate ip tables.
+   ```yaml 
+   ...
+   spec:
+   containers:
+      - securityContext:
+         capabilities:
+            add: ["NET_ADMIN"]
+         ...
+   ```
+## OPA
+   1. OPA Gatekeeper uses ConstraintTemplate K8S custom resources to create k8s Constraint resources.
+   2. When enabling OPA gatekeeper only api server admission plugin enabled should be NodeRestriction.
+   3. Constraints wont remove existing violating resources just mark them as violating when you describe the constraint.
+   4. Example of a ConstraintTemplate Custom Resources. Policy Requires set of labels on resources.
+   ```yaml 
+   apiVersion: templates.gatekeeper.sh/v1beta1
+   kind: ConstraintTemplate
+   metadata:
+     name: k8srequiredlabels
+   spec:
+     crd:
+       spec:
+         names:
+           kind: K8sRequiredLabels
+         validation:
+           # Schema for the `parameters` field
+           openAPIV3Schema:
+             properties:
+               labels:
+                 type: array
+                 items: string
+      targets:
+        - target: admission.k8s.gatekeeper.sh
+          rego: |
+            package k8srequiredlabels
+
+            violation[{"msg": msg, "details": {"missing_labels": missing}}] {
+              provided := {label | input.review.object.metadata.labels[label]}
+              required := {label | label := input.parameters.labels[_]}
+              missing := required - provided
+              count(missing) > 0
+            msg := sprintf("you must provide labels: %v", [missing])
+            }
+   ```
+   5. Example of a Constraint create based on ConstraintTemplate above. Validates namespaces have cks label.
+   ```yaml
+   apiVersion: constraints.gatekeeper.sh/v1beta1
+   kind: K8sRequiredLabels
+   metadata:
+     name: ns-must-have-cks
+   spec:
+     match:
+       kinds:
+         - apiGroups: [""]
+           kinds: ["Namespace"]
+     parameters:
+       labels: ["cks"]
+   ```
+   6. Notice ConstraintTemplate properties defines parameters you must enter in the Constraint
+   
+## Supply Chain Security
+
+### Image Footprint (Multi-Stage builds)
+   1. To reference previous stage in dockerfile that is not aliased use the following. (example using COPY)
+   ```Dockerfile
+   FROM ubuntu
+   ...
+   FROM alpine 
+   COPY --from=0 /app .
+   ...
+   ```
+   2. Install and use proper(specific) versions of dependencies and base images.
+   3. Do not run as root in Dockerfile, here is an example of avoiding this.
+   ```dockerfile
+   RUN addgroup -S appgroup && adduser -S appuser -G appgroup -h /home/appuser
+   COPY --from=0 /app /home/appuser/
+   USER appuser
+   ```
+   4. Make filesystem as readonly as possible
+   ```dockerfile
+   RUN chmod a-w /etc
+   ```
+   5. Remove shell access
+   ```dockerfile
+   RUN rm -rf /bin/*
+   ```
+### Static Analysis
+   1. Can execute in various pieces of CI/CD pipeline.
+      * Git webhook before code commit
+      * Right before build
+      * Right before testing
+      * Live using things like OPA or PSP
+   2. Kubesec: static analysis for K8S 
+      * Can run as the following 
+        * Binary
+        * Docker Container
+        * Kubectl plugin
+        * Admission Controller(kubesec-webhook)
+   3. Example of using Kubesec through docker 
+   ```bash
+   docker run -i kubesec/kubesec:512c5e0 scan /dev/stdin < pod.yaml
+   ```
+   4. OPA conftest for static analysis of K8S manifest and docker files.
+### Scanning Images for Known Vulnerabilites
+   1. Clair: Preforms static analysis of vulnerabilities in app containers
+      * Provides API (not one command run)
+      * Ingest vulnerability metadata from configured set of sources
+   2. Trivy: simple vulnerability scanner for containers and other artifacts, suitable in CI
+### Secure Supply Chain
+   1. Use Docker image digest as image identity
+   2. ImagePolicyWebhooks use CR called ImageReview to validate image is from a valid registry in k8s.
+   3. To enable Image Policy Webhook add to Kube API Server manifest
+   ```yaml
+   ...
+   containers:
+     - command:
+       - kube-apiserver
+       - --enable-admission-plugins=ImagePolicyWebhook
+       - --admission-control-config-file=/etc/kubernetes/admission/admission_config.yaml
+       ... 
+   ```
+   4. The configuration file for the admission policy webhook (make sure pki is absolute dir in the kubeconf file) Make sure to mount this to api-server
+   ```yaml
+   apiVersion: apiserver.config.k8s.io/v1
+   kind: AdmissionConfiguration
+   plugins:
+     - name: ImagePolicyWebhook
+       configuration:
+         imagePolicy:
+           kubeConfigFile: /etc/kubernetes/admission/kubeconf
+           allowTTL: 50
+           denyTTL: 50
+           retryBackoff: 500
+           defaultAllow: false
+   ```
+   kubeconf file
+   ```yaml
+   apiVersion: v1
+   kind: Config
+
+   # clusters refers to the remote service.
+   clusters:
+   - cluster:
+      certificate-authority: /etc/kubernetes/admission/external-cert.pem  # CA for verifying the remote service.
+      server: https://external-service:1234/check-image                   # URL of remote service to query. Must use 'https'.
+     name: image-checker
+
+   contexts:
+   - context:
+       cluster: image-checker
+       user: api-server
+     name: image-checker
+   current-context: image-checker
+   preferences: {}
+
+   # users refers to the API server's webhook configuration.
+   users:
+   - name: api-server
+       user:
+         client-certificate: /etc/kubernetes/admission/apiserver-client-cert.pem     # cert for the webhook admission controller to use
+         client-key:  /etc/kubernetes/admission/apiserver-client-key.pem             # key matching the cert
+   ```
