@@ -244,7 +244,8 @@ TBC
    ...
    spec:
      containers:
-       - securityContext:
+       - 
+       :
            runAsNonRoot: true
          ...  
    ```
@@ -254,7 +255,8 @@ TBC
    ...
    spec:
      containers:
-       - securityContext:
+       - 
+       :
            privileged: true
          ...  
    ```
@@ -264,7 +266,8 @@ TBC
    ...
    spec:
      containers:
-       - securityContext:
+       - 
+       :
            allowPrivilegeEscalation: true
          ...  
    ```
@@ -306,7 +309,8 @@ TBC
    ...
    spec:
    containers:
-      - securityContext:
+      - 
+      :
          capabilities:
             add: ["NET_ADMIN"]
          ...
@@ -483,9 +487,90 @@ TBC
 1. Find configuration for Falco in ```/etc/falco``` directory
 2. default output logs is to ```/var/log/syslog```
 3. falco .local rules override the nodes general falco_rules
+4. rules files contain two main properties a list of rules,  ```rule```, and a list of macros, ```macro```
+5. macro can be called in a rule condition.
+6. ```grep -r "rule describe" .``` in /etc/falco directory to find location of rule fast
+
+### Immutability 
+
+1. Use startup probes to modify container state only 
+2. Use to set readOnlyFileSystem (emptyDir are writable)
+   ```yaml
+   ...
+   containers:
+   - ...
+     securityContext:
+       readOnlyRootFilesystem: true
+   ``` 
 
 ### Auditing 
 
+1. Different stages in Kubernetes logging: (Comes from property omitStages)
+   * RequestRecieved
+   * ResponseStarted
+   * ResponseComplete 
+   * Panic
+2. Levels of data in each logging stage:
+   * None
+   * Metadata
+   * Request
+   * RequestResponse
+3. Event Content consists of Kubernetes resources to be audited.
+4. Enable auditing in Kube API Server (Remember to mount /etc/kubernetes/audit as host path volume)
+   ```yaml 
+   spec:
+     containers:
+     - command:
+       - kube-apiserver
+       - --audit-policy-file=/etc/kubernetes/audit/policy.yaml       # add
+       - --audit-log-path=/etc/kubernetes/audit/logs/audit.log       # add
+       - --audit-log-maxsize=500                                     # add
+       - --audit-log-maxbackup=5                                     # add
+   ```
+5. Steps to change audit policy in Kubernetes Cluster
+   * Change policy yaml configuration file
+   * Disable Auditing in Kube API Server (Comment out ```audit-policy-file``` config)
+   * Enable auditing in Kube API Server (if doesnt restart check logs in /var/log/pods/kube-system_kube-apiserver)
+   * Test changes
 ### Kernal Hardening Tools
+#### AppArmor
+1. App armor is a tool that monitors and restricts kernal calls for process through profiles
+2. Types of Profiles
+   * Unconfined: Process can escape the restrictions
+   * Complain: Process can escape but is logged
+   * Enforce: Process cannot escape
+3. App Armor commands:
+   * Show all profiles: ```aa-status```
+   * Generate new Profile: ```aa-genprof ${SHELL_COMMAND}```
+   * Put a Profile: ```aa-complain```
+   * Put profile in Enforce mode: ```aa-enforce```
+   * Update Profile based on application needs: ```aa-logprof```
+4. Profiles located in ```/etc/apparmor.d```
+5. Run ```aa-logprod``` after generating a Profile and running a command
+6. Run ```aa-parser``` on new Profile file added to ```/etc/apparmor.d```
+7. Specify apparmor with docker
+   ```bash
+   docker run --security-opt apparmor=docker-default nginx
+   ```
+8. How to run app armor on K8S
+   * Container Runtime must support app armor
+   * AppArmor needs to be installed on every node
+   * profile must be on every node.
+   * profiles specified per container using annotations
 
+#### Seccomp 
+
+1. Restricts the use of specific sys calls and will sig kill attempted to use.
+2. Specify seccomp with docker
+   ```bash
+   docker run --security-opt seccomp=default.json nginx
+   ```
+3. Setting seccomp profile location for kubelet ```--secomp-profile-root=DIR```
+4. Can specify in annotations or in securityContext
 ### Reduce Attack Surface
+
+1. Find a service running ```systemctl list-units --type=service --state=running | grep SERVICE```
+2. Find services network intefaces are using ```netstat -plnt | grep PORT|SERVICE```
+3. Check linux users ```whoami```
+4. switch users with ```su USER```
+   
