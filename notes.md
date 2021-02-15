@@ -244,8 +244,7 @@ TBC
    ...
    spec:
      containers:
-       - 
-       :
+       - securityContext:
            runAsNonRoot: true
          ...  
    ```
@@ -255,8 +254,7 @@ TBC
    ...
    spec:
      containers:
-       - 
-       :
+       - securityContext:
            privileged: true
          ...  
    ```
@@ -266,8 +264,7 @@ TBC
    ...
    spec:
      containers:
-       - 
-       :
+       - securityContext:
            allowPrivilegeEscalation: true
          ...  
    ```
@@ -309,8 +306,7 @@ TBC
    ...
    spec:
    containers:
-      - 
-      :
+      - securityContext:
          capabilities:
             add: ["NET_ADMIN"]
          ...
