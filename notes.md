@@ -311,7 +311,7 @@ TBC
             add: ["NET_ADMIN"]
          ...
    ```
-## OPA
+### OPA
    1. OPA Gatekeeper uses ConstraintTemplate K8S custom resources to create k8s Constraint resources.
    2. When enabling OPA gatekeeper only api server admission plugin enabled should be NodeRestriction.
    3. Constraints wont remove existing violating resources just mark them as violating when you describe the constraint.
