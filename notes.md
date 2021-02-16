@@ -274,7 +274,7 @@ TBC
    containers:
      - command:
        - kube-apiserver
-       - --enable-admission-plugins=NodeRestrictions
+       - --enable-admission-plugins=NodeRestrictions,PodSecurityPolicy
        ... 
    ```
    8. Example PodSecurityPolicy
