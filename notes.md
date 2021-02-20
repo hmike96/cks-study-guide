@@ -159,10 +159,10 @@ TBC
    ```bash
    docker inspect ${CONTAINER_ID} 
    ```  
-   2. Hack etcd to get unencrypted secrets
+   2. Hack etcd to get unencrypted secrets (ETCD in Kubernetes stores data under ```/registry/{type}/{namespace}/{name}```)
    ```bash
    ETCDCTL_API=3 etcdctl --cert /etc/kubernetes/pki/apiserver-etcd-client.crt --key /etc/kubernetes/pki/apiserver-etcd-client.key --cacert /etc/kubernetes/pki/etcd/ca.crt get /registry/secrets/default/secret2
-   ```
+   ``` 
    3. Command to rewrite all secrets
    ```bash
    k get secrets -A -o json | k replace -f -
